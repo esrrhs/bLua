@@ -17,6 +17,17 @@ function main()
 
     print("done")
 
+    benchmark()
+end
+
+function benchmark()
+    local begin = os.time()
+    local a = newA()
+    for i = 1, 100000000 do
+        a:get_int()
+        a:set_int(i)
+    end
+    print(os.time() - begin)
 end
 
 local ok, err = pcall(main)

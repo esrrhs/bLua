@@ -16,5 +16,5 @@ ELSE ()
 ENDIF ()
 
 add_custom_command(TARGET luabridge POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/test/test.lua ${CMAKE_BINARY_DIR}/test.lua
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/test/test.lua ${CMAKE_CURRENT_BINARY_DIR}/test.lua
         )
