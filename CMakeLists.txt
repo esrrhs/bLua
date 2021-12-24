@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(luabridge)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 14)
 
 include_directories(.)
 
