@@ -133,7 +133,7 @@ namespace luabridge {
         lua_pop(L, 1);
     }
 
-    template<typename T, size_t... I, typename return_type, typename... arg_types>
+    template<typename T, typename return_type, size_t... I, typename... arg_types>
     return_type
     class_func_call_helper(lua_State *L, T *obj, return_type(T::*func)(arg_types...), std::index_sequence<I...> &&) {
         return ((obj)->*func)(lua_to_native<arg_types>(L, I + 1)...);
@@ -145,6 +145,14 @@ namespace luabridge {
         auto func = *(return_type(T::* *)(arg_types...)) lua_touserdata(L, lua_upvalueindex(1));
         native_to_lua(L, class_func_call_helper(L, obj, func, std::make_index_sequence<sizeof...(arg_types)>()));
         return 1;
+    }
+
+    template<typename T, typename... arg_types>
+    int call_class_void_func(lua_State *L) {
+        auto obj = check_t<T>(L, 1);
+        auto func = *(void (T::* *)(arg_types...)) lua_touserdata(L, lua_upvalueindex(1));
+        class_func_call_helper(L, obj, func, std::make_index_sequence<sizeof...(arg_types)>());
+        return 0;
     }
 
     template<typename T, typename return_type, typename... arg_types>
@@ -161,6 +169,25 @@ namespace luabridge {
         lua_pushstring(L, func_name);
         lua_pushlightuserdata(L, func_mem);
         lua_pushcclosure(L, call_class_func<T, return_type, arg_types...>, 1); /* closure with those upvalues */
+        lua_settable(L, -3);
+
+        lua_pop(L, 1);
+    }
+
+    template<typename T, typename... arg_types>
+    void reg_class_func(lua_State *L, const char *func_name, void(T::*func)(arg_types...)) {
+        auto name = typeid(T).name();
+        if (!luaL_getmetatable(L, name)) {
+            lua_pop(L, 1);
+            return;
+        }
+
+        auto func_mem = new char[sizeof(func)];
+        new(func_mem)(void (T::*)(arg_types...))(func);
+
+        lua_pushstring(L, func_name);
+        lua_pushlightuserdata(L, func_mem);
+        lua_pushcclosure(L, call_class_void_func<T, arg_types...>, 1); /* closure with those upvalues */
         lua_settable(L, -3);
 
         lua_pop(L, 1);
