@@ -12,7 +12,8 @@ function main()
     printA(a)
 
     local aa = a:get_this()
-    print(aa == a)
+    print("aa == a ", aa == a)
+    printA(aa)
 
     print("done")
 

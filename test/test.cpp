@@ -42,7 +42,6 @@ void printA(A *a) {
 int main(int argc, char *argv[]) {
     auto L = luaL_newstate();
     luaL_openlibs(L);
-    printf("before top: %d\n", lua_gettop(L));
 
     luabridge::reg_global_func(L, "newA", newA);
     luabridge::reg_global_func(L, "printA", printA);
@@ -53,8 +52,6 @@ int main(int argc, char *argv[]) {
     luabridge::reg_class_func(L, "set_int", &A::set_int);
     luabridge::reg_class_func(L, "get_string", &A::get_string);
     luabridge::reg_class_func(L, "set_string", &A::set_string);
-
-    printf("after top: %d\n", lua_gettop(L));
 
     luaL_dofile(L, "test.lua");
 
