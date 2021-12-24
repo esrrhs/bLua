@@ -12,7 +12,7 @@ function main()
     printA(a)
 
     local aa = a:get_this()
-    printA(aa)
+    print(aa == a)
 
     print("done")
 

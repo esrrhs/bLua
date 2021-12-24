@@ -25,7 +25,7 @@ namespace luabridge {
 
     template<typename T>
     T lua_to_native(lua_State *L, int i) {
-        static_assert(std::is_pointer<T>::value);
+        static_assert(std::is_pointer<T>::value, "T should be pointer");
         typedef typename std::remove_pointer<T>::type t;
         return check_t<t>(L, i);
     }
@@ -109,11 +109,40 @@ namespace luabridge {
 
     template<typename T>
     void native_to_lua(lua_State *L, T *v) {
-        static_assert(!std::is_pointer<T>::value);
-        auto userdata = static_cast<T **>(lua_newuserdata(L, sizeof(T *)));
-        *userdata = v;
-        auto name = typeid(T).name();
-        luaL_setmetatable(L, name);
+        static_assert(!std::is_pointer<T>::value, "T should not be pointer");
+
+        if (!v) {
+            lua_pushnil(L);
+            return;
+        }
+
+        if (lua_getfield(L, LUA_REGISTRYINDEX, "luabridge_pointer") != LUA_TTABLE) {
+            lua_pop(L, 1);
+
+            lua_newtable(L);
+
+            lua_newtable(L);
+            lua_pushstring(L, "v");
+            lua_setfield(L, -2, "__mode");
+            lua_setmetatable(L, -2);
+
+            lua_pushvalue(L, -1);
+            lua_setfield(L, LUA_REGISTRYINDEX, "luabridge_pointer");
+        }
+
+        if (lua_rawgetp(L, -1, v) != LUA_TUSERDATA) {
+            lua_pop(L, 1);
+
+            auto userdata = static_cast<T **>(lua_newuserdata(L, sizeof(T *)));
+            *userdata = v;
+            auto name = typeid(T).name();
+            luaL_setmetatable(L, name);
+
+            lua_pushvalue(L, -1);
+            lua_rawsetp(L, -3, v);
+        }
+
+        lua_remove(L, -2);
     }
 
     void native_to_lua(lua_State *L, bool v) {
@@ -182,8 +211,8 @@ namespace luabridge {
 
     template<typename T>
     int free_class(lua_State *L) {
-        auto tracer = check_t<T>(L, 1);
-        delete tracer;
+        auto t = check_t<T>(L, 1);
+        delete t;
         return 0;
     }
 
