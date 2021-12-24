@@ -13,10 +13,17 @@ private:
     int m_a;
 };
 
+A *newA() { return new A; }
+
+void printA(A *a) { printf("%p", a); }
+
 int main(int argc, char *argv[]) {
     auto L = luaL_newstate();
     luaL_openlibs(L);
     printf("before top: %d\n", lua_gettop(L));
+
+    luabridge::reg_global_func(L, "newA", newA);
+    luabridge::reg_global_func(L, "printA", printA);
 
     luabridge::reg_class<A>(L);
     luabridge::reg_class_func(L, "get_int", &A::get_int);
