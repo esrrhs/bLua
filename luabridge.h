@@ -112,6 +112,8 @@ namespace luabridge {
         static_assert(!std::is_pointer<T>::value);
         auto userdata = static_cast<T **>(lua_newuserdata(L, sizeof(T *)));
         *userdata = v;
+        auto name = typeid(T).name();
+        luaL_setmetatable(L, name);
     }
 
     void native_to_lua(lua_State *L, bool v) {
@@ -204,7 +206,7 @@ namespace luabridge {
     template<typename T, typename return_type, size_t... I, typename... arg_types>
     return_type
     class_func_call_helper(lua_State *L, T *obj, return_type(T::*func)(arg_types...), std::index_sequence<I...> &&) {
-        return ((obj)->*func)(lua_to_native<arg_types>(L, I + 1)...);
+        return ((obj)->*func)(lua_to_native<arg_types>(L, I + 2)...);
     }
 
     template<typename T, typename return_type, typename... arg_types>
