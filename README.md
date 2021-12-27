@@ -1,5 +1,5 @@
 # bLua
-c++与lua的胶水层，b代表着bridge
+C++与Lua的胶水层，b代表着bridge
 
 # 特性
 * 只有一个头文件
