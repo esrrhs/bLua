@@ -1,3 +1,4 @@
+-- for c++ function call
 function main()
     print("start")
 
@@ -18,6 +19,7 @@ function main()
     print("done")
 end
 
+-- for global lua function call
 function benchmark(n, log)
     local begin = os.time()
     local a = newA()
@@ -31,6 +33,13 @@ function benchmark(n, log)
     print(cost, log, sum)
     printA(a)
     return cost, log, sum, a
+end
+
+-- for table lua function call
+_G.test = {}
+_G.test.func = {}
+function _G.test.func.test(a, b)
+    return a - b
 end
 
 local ok, err = pcall(main)

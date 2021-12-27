@@ -12,6 +12,7 @@ extern "C" {
 #include <iostream>
 #include <array>
 #include <utility>
+#include <vector>
 
 namespace luabridge {
 
@@ -384,6 +385,52 @@ namespace luabridge {
         lua_remove(L, -2);
 
         lua_getglobal(L, func_name);
+        if (!lua_isfunction(L, -1)) {
+            return {false, std::string("no function ") + func_name};
+        }
+
+        lua_func_call_helper(L, args...);
+
+        if (lua_pcall(L, arg_num, ret_num, -(arg_num + 2))) {
+            return {false, lua_tostring(L, -1)};
+        }
+
+        lua_func_ret_helper(L, rets);
+
+        return {true, ""};
+    }
+
+    template<typename... ret_types, typename... arg_types>
+    std::pair<bool, std::string>
+    call_lua_table_func(lua_State *L, std::vector<std::string> tables, const char *func_name,
+                        std::tuple<ret_types &...> &&rets, arg_types... args) {
+        lua_stack_protector lp(L);
+
+        auto ret_num = sizeof...(ret_types);
+        auto arg_num = sizeof...(args);
+
+        lua_getglobal(L, "debug");
+        lua_getfield(L, -1, "traceback");
+        lua_remove(L, -2);
+
+        if (tables.empty()) {
+            return {false, "no tables"};
+        }
+
+        lua_getglobal(L, tables[0].c_str());
+        if (!lua_istable(L, -1)) {
+            return {false, std::string("no table ") + tables[0]};
+        }
+
+        for (int i = 1; i < tables.size(); ++i) {
+            lua_getfield(L, -1, tables[i].c_str());
+            lua_remove(L, -2);
+            if (!lua_istable(L, -1)) {
+                return {false, std::string("no table ") + tables[i - 1]};
+            }
+        }
+
+        lua_getfield(L, -1, func_name);
         if (!lua_isfunction(L, -1)) {
             return {false, std::string("no function ") + func_name};
         }

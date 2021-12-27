@@ -43,9 +43,11 @@ int main(int argc, char *argv[]) {
     auto L = luaL_newstate();
     luaL_openlibs(L);
 
+    // register global function
     luabridge::reg_global_func(L, "newA", newA);
     luabridge::reg_global_func(L, "printA", printA);
 
+    // register class function
     luabridge::reg_class<A>(L);
     luabridge::reg_class_func(L, "get_this", &A::get_this);
     luabridge::reg_class_func(L, "get_int", &A::get_int);
@@ -55,6 +57,7 @@ int main(int argc, char *argv[]) {
 
     luaL_dofile(L, "test.lua");
 
+    // call global lua function
     int cost = 0;
     std::string message;
     uint64_t sum = 0;
@@ -64,6 +67,14 @@ int main(int argc, char *argv[]) {
                                                100000, "test");
     printf("%d %s %llu\n", cost, message.c_str(), sum);
     printA(retA);
+    printf("ret %d %s\n", ret.first, ret.second.c_str());
+
+    // call table lua function
+    int testret = 0;
+    ret = luabridge::call_lua_table_func(L, {"_G", "test", "func"}, "test",
+                                         std::tie(testret),
+                                         100000, 1);
+    printf("%d\n", testret);
     printf("ret %d %s\n", ret.first, ret.second.c_str());
 
     lua_close(L);
