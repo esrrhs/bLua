@@ -13,6 +13,7 @@ extern "C" {
 #include <array>
 #include <utility>
 #include <vector>
+#include <optional>
 
 namespace bLua {
 
@@ -373,7 +374,7 @@ namespace bLua {
     };
 
     template<typename... ret_types, typename... arg_types>
-    std::pair<bool, std::string>
+    std::optional<std::string>
     call_lua_global_func(lua_State *L, const char *func_name, std::tuple<ret_types &...> &&rets, arg_types... args) {
         lua_stack_protector lp(L);
 
@@ -386,22 +387,22 @@ namespace bLua {
 
         lua_getglobal(L, func_name);
         if (!lua_isfunction(L, -1)) {
-            return {false, std::string("no function ") + func_name};
+            return std::string("no function ") + func_name;
         }
 
         lua_func_call_helper(L, args...);
 
         if (lua_pcall(L, arg_num, ret_num, -(arg_num + 2))) {
-            return {false, lua_tostring(L, -1)};
+            return lua_tostring(L, -1);
         }
 
         lua_func_ret_helper(L, rets);
 
-        return {true, ""};
+        return std::nullopt;
     }
 
     template<typename... ret_types, typename... arg_types>
-    std::pair<bool, std::string>
+    std::optional<std::string>
     call_lua_table_func(lua_State *L, std::vector<std::string> tables, const char *func_name,
                         std::tuple<ret_types &...> &&rets, arg_types... args) {
         lua_stack_protector lp(L);
@@ -414,35 +415,35 @@ namespace bLua {
         lua_remove(L, -2);
 
         if (tables.empty()) {
-            return {false, "no tables"};
+            return "no tables";
         }
 
         lua_getglobal(L, tables[0].c_str());
         if (!lua_istable(L, -1)) {
-            return {false, std::string("no table ") + tables[0]};
+            return std::string("no table ") + tables[0];
         }
 
         for (int i = 1; i < tables.size(); ++i) {
             lua_getfield(L, -1, tables[i].c_str());
             lua_remove(L, -2);
             if (!lua_istable(L, -1)) {
-                return {false, std::string("no table ") + tables[i - 1]};
+                return std::string("no table ") + tables[i - 1];
             }
         }
 
         lua_getfield(L, -1, func_name);
         if (!lua_isfunction(L, -1)) {
-            return {false, std::string("no function ") + func_name};
+            return std::string("no function ") + func_name;
         }
 
         lua_func_call_helper(L, args...);
 
         if (lua_pcall(L, arg_num, ret_num, -(arg_num + 2))) {
-            return {false, lua_tostring(L, -1)};
+            return lua_tostring(L, -1);
         }
 
         lua_func_ret_helper(L, rets);
 
-        return {true, ""};
+        return std::nullopt;
     }
 }

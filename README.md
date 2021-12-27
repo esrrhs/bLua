@@ -2,6 +2,7 @@
 C++与Lua的胶水层，b代表着bridge
 
 # 特性
+* 依赖C++17
 * 只有一个头文件
 * 接口简单轻量
 * userdata的方式管理c++指针周期
@@ -49,14 +50,18 @@ int input_int = 123;
 std::string input_str = "test";
 
 // 调用
-auto ret = bLua::call_lua_global_func(L, "global_func_name", 
+auto err = bLua::call_lua_global_func(L, "global_func_name", 
     std::tie(output_int, output_str, output_int64), 
     input_int, input_str);
 
 // 调用是否成功
-printf("ret ok=%d errmsg=%s\n", ret.first, ret.second.c_str());
-// 输出返回结果
-printf("%d %s %llu\n", output_int, output_str.c_str(), output_int64);
+if (err) {
+    // 出错，输出错误信息
+    printf("ret error %s\n", err.value().c_str());
+} else {
+    // 成功则输出函数返回结果
+    printf("%d %s %llu\n", output_int, output_str.c_str(), output_int64);
+}
 ```
 如果lua的函数在一层层table中，例如
 ```lua
@@ -67,11 +72,11 @@ end
 那么c++调用lua嵌套的table函数
 ```c++
 // 调用
-auto ret = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test", 
+auto err = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test", 
     std::tie(output_int, output_str, output_int64), 
     input_int, input_str);
 ```
-具体例子可以参考test目录
+具体例子可以参考test目录的test.cpp和test.lua
 
 # 编译
 ```

@@ -62,20 +62,25 @@ int main(int argc, char *argv[]) {
     std::string message;
     uint64_t sum = 0;
     A *retA = 0;
-    auto ret = bLua::call_lua_global_func(L, "benchmark",
-                                               std::tie(cost, message, sum, retA),
-                                               100000, "test");
+    auto err = bLua::call_lua_global_func(L, "benchmark",
+                                          std::tie(cost, message, sum, retA),
+                                          100000, "test");
     printf("%d %s %llu\n", cost, message.c_str(), sum);
-    printA(retA);
-    printf("ret %d %s\n", ret.first, ret.second.c_str());
-
+    if (err) {
+        printf("ret error %s\n", err.value().c_str());
+    } else {
+        printA(retA);
+    }
+ 
     // call table lua function
     int testret = 0;
-    ret = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test",
-                                         std::tie(testret),
-                                         100000, 1);
+    err = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test",
+                                    std::tie(testret),
+                                    100000, 1);
     printf("%d\n", testret);
-    printf("ret %d %s\n", ret.first, ret.second.c_str());
+    if (err) {
+        printf("ret error %s\n", err.value().c_str());
+    }
 
     lua_close(L);
     return 0;
