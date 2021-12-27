@@ -55,6 +55,17 @@ int main(int argc, char *argv[]) {
 
     luaL_dofile(L, "test.lua");
 
+    int cost = 0;
+    std::string message;
+    uint64_t sum = 0;
+    A *retA = 0;
+    auto ret = luabridge::call_lua_global_func(L, "benchmark",
+                                               std::tie(cost, message, sum, retA),
+                                               100000, "test");
+    printf("%d %s %llu\n", cost, message.c_str(), sum);
+    printA(retA);
+    printf("ret %d %s\n", ret.first, ret.second.c_str());
+
     lua_close(L);
     return 0;
 }

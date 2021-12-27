@@ -16,18 +16,21 @@ function main()
     printA(aa)
 
     print("done")
-
-    benchmark()
 end
 
-function benchmark()
+function benchmark(n, log)
     local begin = os.time()
     local a = newA()
-    for i = 1, 100000000 do
+    local sum = 0
+    for i = 1, n do
         a:get_int()
         a:set_int(i)
+        sum = sum + i
     end
-    print(os.time() - begin)
+    local cost = os.time() - begin
+    print(cost, log, sum)
+    printA(a)
+    return cost, log, sum, a
 end
 
 local ok, err = pcall(main)

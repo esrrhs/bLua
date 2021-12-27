@@ -325,4 +325,77 @@ namespace luabridge {
         lua_pushcclosure(L, call_global_void_func<arg_types...>, 1); /* closure with those upvalues */
         lua_setglobal(L, func_name);
     }
+
+    template<typename head, typename... arg_types>
+    void lua_func_call_helper(lua_State *L, head arg) {
+        native_to_lua(L, arg);
+    }
+
+    template<typename head, typename... arg_types>
+    void lua_func_call_helper(lua_State *L, head arg, arg_types... args) {
+        native_to_lua(L, arg);
+        lua_func_call_helper(L, args...);
+    }
+
+    template<size_t I = 0, typename... ret_types>
+    inline typename std::enable_if<I == sizeof...(ret_types), void>::type
+    lua_func_ret_helper(lua_State *L, std::tuple<ret_types &...> &rets) {
+
+    }
+
+    template<size_t I = 0, typename... ret_types>
+    inline typename std::enable_if<I < sizeof...(ret_types), void>::type
+    lua_func_ret_helper(lua_State *L, std::tuple<ret_types &...> &rets) {
+        typedef typename std::remove_reference<std::tuple_element_t<I, std::tuple<ret_types &...>>>::type t;
+        std::get<I>(rets) = lua_to_native<t>(L, -(int(sizeof...(ret_types) - I)));
+        lua_func_ret_helper<I + 1, ret_types...>(L, rets);
+    }
+
+    struct lua_stack_protector {
+        lua_stack_protector(lua_State *L) {
+            m_L = L;
+            m_top = lua_gettop(L);
+        }
+
+        ~lua_stack_protector() {
+            lua_settop(m_L, m_top);
+        }
+
+        lua_stack_protector(const lua_stack_protector &other) = delete;
+
+        lua_stack_protector(lua_stack_protector &&other) = delete;
+
+        lua_stack_protector &operator=(const lua_stack_protector &) = delete;
+
+        lua_State *m_L;
+        int m_top;
+    };
+
+    template<typename... ret_types, typename... arg_types>
+    std::pair<bool, std::string>
+    call_lua_global_func(lua_State *L, const char *func_name, std::tuple<ret_types &...> &&rets, arg_types... args) {
+        lua_stack_protector lp(L);
+
+        auto ret_num = sizeof...(ret_types);
+        auto arg_num = sizeof...(args);
+
+        lua_getglobal(L, "debug");
+        lua_getfield(L, -1, "traceback");
+        lua_remove(L, -2);
+
+        lua_getglobal(L, func_name);
+        if (!lua_isfunction(L, -1)) {
+            return {false, std::string("no function ") + func_name};
+        }
+
+        lua_func_call_helper(L, args...);
+
+        if (lua_pcall(L, arg_num, ret_num, -(arg_num + 2))) {
+            return {false, lua_tostring(L, -1)};
+        }
+
+        lua_func_ret_helper(L, rets);
+
+        return {true, ""};
+    }
 }
