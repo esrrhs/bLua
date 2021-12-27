@@ -1,4 +1,4 @@
-#include "luabridge.h"
+#include "bLua.h"
 #include "lua.hpp"
 
 class A {
@@ -44,16 +44,16 @@ int main(int argc, char *argv[]) {
     luaL_openlibs(L);
 
     // register global function
-    luabridge::reg_global_func(L, "newA", newA);
-    luabridge::reg_global_func(L, "printA", printA);
+    bLua::reg_global_func(L, "newA", newA);
+    bLua::reg_global_func(L, "printA", printA);
 
     // register class function
-    luabridge::reg_class<A>(L);
-    luabridge::reg_class_func(L, "get_this", &A::get_this);
-    luabridge::reg_class_func(L, "get_int", &A::get_int);
-    luabridge::reg_class_func(L, "set_int", &A::set_int);
-    luabridge::reg_class_func(L, "get_string", &A::get_string);
-    luabridge::reg_class_func(L, "set_string", &A::set_string);
+    bLua::reg_class<A>(L);
+    bLua::reg_class_func(L, "get_this", &A::get_this);
+    bLua::reg_class_func(L, "get_int", &A::get_int);
+    bLua::reg_class_func(L, "set_int", &A::set_int);
+    bLua::reg_class_func(L, "get_string", &A::get_string);
+    bLua::reg_class_func(L, "set_string", &A::set_string);
 
     luaL_dofile(L, "test.lua");
 
@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
     std::string message;
     uint64_t sum = 0;
     A *retA = 0;
-    auto ret = luabridge::call_lua_global_func(L, "benchmark",
+    auto ret = bLua::call_lua_global_func(L, "benchmark",
                                                std::tie(cost, message, sum, retA),
                                                100000, "test");
     printf("%d %s %llu\n", cost, message.c_str(), sum);
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
 
     // call table lua function
     int testret = 0;
-    ret = luabridge::call_lua_table_func(L, {"_G", "test", "func"}, "test",
+    ret = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test",
                                          std::tie(testret),
                                          100000, 1);
     printf("%d\n", testret);

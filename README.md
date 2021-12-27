@@ -1,5 +1,5 @@
-# luabridge
-C++与Lua的胶水层
+# bLua
+c++与lua的胶水层，b代表着bridge
 
 # 特性
 * 只有一个头文件
@@ -11,16 +11,16 @@ C++与Lua的胶水层
 首先注册类及需要的成员函数
 ```c++
 // 注册全局函数
-luabridge::reg_global_func(L, "newA", newA);
-luabridge::reg_global_func(L, "printA", printA);
+bLua::reg_global_func(L, "newA", newA);
+bLua::reg_global_func(L, "printA", printA);
 
 // 注册类函数
-luabridge::reg_class<A>(L);
-luabridge::reg_class_func(L, "get_this", &A::get_this);
-luabridge::reg_class_func(L, "get_int", &A::get_int);
-luabridge::reg_class_func(L, "set_int", &A::set_int);
-luabridge::reg_class_func(L, "get_string", &A::get_string);
-luabridge::reg_class_func(L, "set_string", &A::set_string);
+bLua::reg_class<A>(L);
+bLua::reg_class_func(L, "get_this", &A::get_this);
+bLua::reg_class_func(L, "get_int", &A::get_int);
+bLua::reg_class_func(L, "set_int", &A::set_int);
+bLua::reg_class_func(L, "get_string", &A::get_string);
+bLua::reg_class_func(L, "set_string", &A::set_string);
 ```
 然后在lua中使用即可
 ```lua
@@ -49,7 +49,7 @@ int input_int = 123;
 std::string input_str = "test";
 
 // 调用
-auto ret = luabridge::call_lua_global_func(L, "global_func_name", 
+auto ret = bLua::call_lua_global_func(L, "global_func_name", 
     std::tie(output_int, output_str, output_int64), 
     input_int, input_str);
 
@@ -67,7 +67,7 @@ end
 那么c++调用lua嵌套的table函数
 ```c++
 // 调用
-auto ret = luabridge::call_lua_table_func(L, {"_G", "test", "func"}, "test", 
+auto ret = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test", 
     std::tie(output_int, output_str, output_int64), 
     input_int, input_str);
 ```
@@ -82,7 +82,7 @@ auto ret = luabridge::call_lua_table_func(L, {"_G", "test", "func"}, "test",
 ```
 运行test程序
 ```
-# ./luabridge 
+# ./bLua 
 ```
 
 ## 其他

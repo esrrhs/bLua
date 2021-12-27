@@ -14,7 +14,7 @@ extern "C" {
 #include <utility>
 #include <vector>
 
-namespace luabridge {
+namespace bLua {
 
     template<typename T>
     T *check_t(lua_State *L, int i) noexcept {
@@ -117,7 +117,7 @@ namespace luabridge {
             return;
         }
 
-        if (lua_getfield(L, LUA_REGISTRYINDEX, "luabridge_pointer") != LUA_TTABLE) {
+        if (lua_getfield(L, LUA_REGISTRYINDEX, "blua_pointer") != LUA_TTABLE) {
             lua_pop(L, 1);
 
             lua_newtable(L);
@@ -128,7 +128,7 @@ namespace luabridge {
             lua_setmetatable(L, -2);
 
             lua_pushvalue(L, -1);
-            lua_setfield(L, LUA_REGISTRYINDEX, "luabridge_pointer");
+            lua_setfield(L, LUA_REGISTRYINDEX, "blua_pointer");
         }
 
         if (lua_rawgetp(L, -1, v) != LUA_TUSERDATA) {
