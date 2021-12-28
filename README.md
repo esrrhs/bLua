@@ -1,4 +1,9 @@
 # bLua
+
+[<img src="https://img.shields.io/github/license/esrrhs/bLua">](https://github.com/esrrhs/bLua)
+[<img src="https://img.shields.io/github/languages/top/esrrhs/bLua">](https://github.com/esrrhs/bLua)
+[<img src="https://img.shields.io/github/workflow/status/esrrhs/bLua/CI">](https://github.com/esrrhs/bLua/actions)
+
 C++与Lua的胶水层，b代表着bridge
 
 # 特性
