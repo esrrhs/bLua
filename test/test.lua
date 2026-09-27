@@ -6,14 +6,18 @@ function main()
 
     a:set_int(123)
     print("a:get_int() ", a:get_int())
+    assert(a:get_int() == 123, "get_int mismatch")
+    assert(a:get_int_const() == 123, "get_int_const mismatch")
 
     a:set_string("abc")
     print("a:set_string() ", a:get_string())
+    assert(a:get_string() == "abc", "get_string mismatch")
 
     printA(a)
 
     local aa = a:get_this()
     print("aa == a ", aa == a)
+    assert(aa == a, "pointer identity mismatch")
     printA(aa)
 
     print("done")
@@ -35,6 +39,11 @@ function benchmark(n, log)
     return cost, log, sum, a
 end
 
+-- for 0-arg lua function call test
+function zero_arg_func()
+    return 42
+end
+
 -- for table lua function call
 _G.test = {}
 _G.test.func = {}
@@ -45,4 +54,5 @@ end
 local ok, err = pcall(main)
 if not ok then
     print(err)
+    error(err)
 end

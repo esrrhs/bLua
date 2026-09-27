@@ -1,0 +1,8 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Lua REQUIRED)
+
+if(NOT TARGET bLua::bLua)
+    include("${CMAKE_CURRENT_LIST_DIR}/bLuaTargets.cmake")
+endif()

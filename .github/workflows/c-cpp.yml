@@ -2,29 +2,59 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, main ]
 
 jobs:
-  build:
-
+  linux-build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        lua_pkg: [liblua5.4-dev, liblua5.3-dev]
 
     steps:
-    - uses: actions/checkout@v2
-    
-    - name: prepare-lua
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
       run: |
-        sudo apt-get install libreadline-dev -y
-        sudo wget https://www.lua.org/ftp/lua-5.3.4.tar.gz
-        sudo tar -xf lua-5.3.4.tar.gz
-        cd lua-5.3.4
-        sudo make linux
-        sudo make install
-        
-    - name: build
+        sudo apt-get update
+        sudo apt-get install -y ${{ matrix.lua_pkg }}
+
+    - name: Configure CMake
+      env:
+        CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+        CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
       run: |
-        cmake .
-        make
-        ./blua
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON
+
+    - name: Build
+      run: |
+        cmake --build build --config Release
+
+    - name: Run Tests
+      run: |
+        ctest --test-dir build --output-on-failure -C Release
+
+  macos-build:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Dependencies
+      run: |
+        brew install lua
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON
+
+    - name: Build
+      run: |
+        cmake --build build --config Release
+
+    - name: Run Tests
+      run: |
+        ctest --test-dir build --output-on-failure -C Release
