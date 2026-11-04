@@ -51,10 +51,21 @@ inline int bLua_absindex(lua_State *L, int idx) {
     return (idx > 0 || idx <= LUA_REGISTRYINDEX) ? idx : lua_gettop(L) + idx + 1;
 }
 
-inline void lua_rawgetp(lua_State *L, int idx, const void *p) {
+// Lua 5.2+ stack getters return the value type; emulate that on 5.1 / LuaJIT.
+inline int blua_lua_getfield(lua_State *L, int idx, const char *k) {
+    idx = bLua_absindex(L, idx);
+    lua_pushstring(L, k);
+    lua_gettable(L, idx);
+    return lua_type(L, -1);
+}
+#undef lua_getfield
+#define lua_getfield(L, idx, k) blua_lua_getfield(L, idx, k)
+
+inline int lua_rawgetp(lua_State *L, int idx, const void *p) {
     idx = bLua_absindex(L, idx);
     lua_pushlightuserdata(L, const_cast<void*>(p));
     lua_rawget(L, idx);
+    return lua_type(L, -1);
 }
 
 inline void lua_rawsetp(lua_State *L, int idx, const void *p) {
@@ -63,6 +74,16 @@ inline void lua_rawsetp(lua_State *L, int idx, const void *p) {
     lua_insert(L, -2);
     lua_rawset(L, idx);
 }
+
+#ifdef luaL_getmetatable
+#undef luaL_getmetatable
+#endif
+inline int blua_luaL_getmetatable(lua_State *L, const char *tname) {
+    lua_pushstring(L, tname);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    return lua_type(L, -1);
+}
+#define luaL_getmetatable(L, n) blua_luaL_getmetatable(L, n)
 
 #ifndef LUA_OK
 #define LUA_OK 0
