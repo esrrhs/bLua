@@ -17,10 +17,21 @@ C++ 与 Lua 的胶水层（Header-only），`b` 代表 bridge。基于现代 C++
 * **现代 C++17**：充分利用折叠表达式与模板元编程，编译高效，无运行时开销。
 * **Header-only**：单个头文件 `bLua.h`，无须编译库文件，直接包含即用。
 * **支持 const / 非 const 成员函数**：类成员函数及常成员函数均可便捷绑定。
-* **支持 std::string_view / std::string / 常见基本类型**。
+* **支持 std::string_view / std::string / 常见基本类型**，以及 `std::vector` / `std::map` ↔ Lua table 转换。
 * **无侵入**：C++ 类无需继承任何基类或添加宏。
-* **生命周期安全**：利用 Lua Weak Table 与 Userdata 管理 C++ 指针生命周期，避免重复创建与内存泄漏。
+* **可配置所有权**：owning / non-owning / 自定义 deleter，避免非 Lua 拥有的指针被 `__gc` 误删。
+* **稳定类型名**：可为类指定 metatable 名（GCC/Clang 上回退到 demangle 后的 typeid）。
+* **API 体验**：构造函数、属性、枚举、按参数个数分发的重载注册。
 * **现代 CMake**：支持 `find_package(bLua)`、`FetchContent` 以及 CTest 单元测试。
+
+## Lua 版本兼容矩阵
+
+| 运行时 | 状态 | 说明 |
+|--------|------|------|
+| Lua 5.4 | 支持（CI） | 主目标 |
+| Lua 5.3 | 支持（CI） | |
+| Lua 5.2 | 兼容 | 含兼容 shim，未进 CI |
+| Lua 5.1 / LuaJIT | 兼容（CI：LuaJIT） | 含 `lua_rawgetp` / `lua_rawlen` / `luaL_setmetatable` shim |
 
 ## 用法
 ### 1. Lua 调用 C++
@@ -32,53 +43,62 @@ C++ 与 Lua 的胶水层（Header-only），`b` 代表 bridge。基于现代 C++
 bLua::reg_global_func(L, "newA", newA);
 bLua::reg_global_func(L, "printA", printA);
 
-// 注册类及成员函数
-bLua::reg_class<A>(L);
+// 注册类（建议传入稳定类型名）；默认 owning，即 __gc 时 delete
+bLua::reg_class<A>(L, "A");
 bLua::reg_class_func(L, "get_this", &A::get_this);
 bLua::reg_class_func(L, "get_int", &A::get_int);
-bLua::reg_class_func(L, "get_int_const", &A::get_int_const); // 支持 const 成员函数
+bLua::reg_class_func(L, "get_int_const", &A::get_int_const);
 bLua::reg_class_func(L, "set_int", &A::set_int);
 bLua::reg_class_func(L, "get_string", &A::get_string);
 bLua::reg_class_func(L, "set_string", &A::set_string);
+
+// 非拥有（C++ 保有所有权，__gc 不 delete）
+// bLua::reg_class_non_owning<A>(L, "A");
+// 自定义释放：
+// bLua::reg_class_with_deleter<A>(L, my_free_A, "A");
+
+// 构造函数 / 属性 / 枚举 / 重载
+bLua::reg_constructor<A, int>(L, "A_new");
+bLua::reg_property(L, "a", &A::m_a);           // get_a / set_a
+bLua::reg_enum<Color>(L, "Color", {{"Red", Color::Red}, {"Green", Color::Green}});
+bLua::reg_global_overload(L, "add", add1, add2); // 按参数个数分发
 ```
 
 然后在 Lua 中使用即可：
 ```lua
--- 创建一个对象
 local a = newA()
-
--- 调用对象函数
 a:set_int(123)
 print("a:get_int() ", a:get_int())
-
--- 调用对象函数
 a:set_string("abc")
 print("a:get_string() ", a:get_string())
 ```
 
-### 2. C++ 调用 Lua
+### 2. 容器转换
+```cpp
+std::vector<int> v = bLua::to_vector<int>(L, index);
+bLua::push_vector(L, v);
+
+std::map<std::string, int> m = bLua::to_map<std::string, int>(L, index);
+bLua::push_map(L, m);
+```
+
+### 3. C++ 调用 Lua
 #### 调用全局函数
 ```cpp
-// 接收多个返回值
 int output_int = 0;
 std::string output_str;
 uint64_t output_int64 = 0;
 
-// 输入参数
 int input_int = 123;
 std::string input_str = "test";
 
-// 调用（也支持 0 个入参）
-auto err = bLua::call_lua_global_func(L, "global_func_name", 
-    std::tie(output_int, output_str, output_int64), 
+auto err = bLua::call_lua_global_func(L, "global_func_name",
+    std::tie(output_int, output_str, output_int64),
     input_int, input_str);
 
-// 调用是否成功
 if (err) {
-    // 出错，输出错误信息
     printf("ret error: %s\n", err.value().c_str());
 } else {
-    // 成功则输出函数返回结果
     printf("%d %s %llu\n", output_int, output_str.c_str(), output_int64);
 }
 ```
@@ -92,12 +112,12 @@ end
 ```
 C++ 可直接通过层级数组调用：
 ```cpp
-auto err = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test", 
-    std::tie(output_int), 
+auto err = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test",
+    std::tie(output_int),
     input_int, input_int2);
 ```
 
-具体完整示例可参考 [test/test.cpp](test/test.cpp) 和 [test/test.lua](test/test.lua)。
+具体完整示例可参考 [test/test.cpp](test/test.cpp) 和 [test/test.lua](test/test.lua)。变更说明见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 引入项目
 

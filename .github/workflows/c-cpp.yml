@@ -38,6 +38,28 @@ jobs:
       run: |
         ctest --test-dir build --output-on-failure -C Release
 
+  linux-luajit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install LuaJIT
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libluajit-5.1-dev
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON
+
+    - name: Build
+      run: |
+        cmake --build build --config Release
+
+    - name: Run Tests
+      run: |
+        ctest --test-dir build --output-on-failure -C Release
+
   macos-build:
     runs-on: macos-latest
     steps:
@@ -50,6 +72,28 @@ jobs:
     - name: Configure CMake
       run: |
         cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON
+
+    - name: Build
+      run: |
+        cmake --build build --config Release
+
+    - name: Run Tests
+      run: |
+        ctest --test-dir build --output-on-failure -C Release
+
+  windows-build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Lua (vcpkg)
+      run: |
+        vcpkg install lua:x64-windows
+        vcpkg integrate install
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
     - name: Build
       run: |
