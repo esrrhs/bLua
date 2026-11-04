@@ -17,10 +17,21 @@ A header-only C++ and Lua glue/bridge library (`b` stands for bridge). Built on 
 * **Modern C++17**: Leverages fold expressions and template metaprogramming for efficient compilation and zero runtime overhead.
 * **Header-only**: Single header file `bLua.h` with no extra libraries to build—just drop it into your project and use.
 * **Member Function Support**: Easily binds regular functions, member functions, and `const` member functions.
-* **Rich Type Support**: Built-in support for `std::string_view`, `std::string`, primitive types, and custom user classes.
+* **Rich Type Support**: Built-in support for `std::string_view`, `std::string`, primitive types, custom user classes, plus `std::vector` / `std::map` ↔ Lua table helpers.
 * **Non-intrusive**: No need to inherit from any base class or decorate classes with intrusive macros.
-* **Safe Lifetime Management**: Uses Lua weak tables and userdata to track and manage C++ pointer lifecycles, preventing duplicate userdata creation and memory leaks.
+* **Configurable ownership**: Owning / non-owning / custom deleter so Lua `__gc` does not free C++-owned pointers.
+* **Stable type names**: User-provided metatable names (demangled `typeid` fallback on GCC/Clang).
+* **API DX**: Constructors, properties, enums, and arity-based free-function overloads.
 * **Modern CMake**: First-class support for `find_package(bLua)`, `FetchContent`, and CTest unit testing.
+
+## Lua version matrix
+
+| Runtime | Status | Notes |
+|---------|--------|-------|
+| Lua 5.4 | Supported (CI) | Primary target |
+| Lua 5.3 | Supported (CI) | |
+| Lua 5.2 | Compatible | Compatibility shims present; not in CI matrix |
+| Lua 5.1 / LuaJIT | Compatible (CI: LuaJIT) | `lua_rawgetp` / `lua_rawlen` / `luaL_setmetatable` shims |
 
 ## Usage
 
@@ -34,73 +45,80 @@ Register a class and its member functions (supports global functions, member fun
 bLua::reg_global_func(L, "newA", newA);
 bLua::reg_global_func(L, "printA", printA);
 
-// Register class and member functions
-bLua::reg_class<A>(L);
+// Register class with a stable name (recommended); default ownership is owning (delete on __gc)
+bLua::reg_class<A>(L, "A");
 bLua::reg_class_func(L, "get_this", &A::get_this);
 bLua::reg_class_func(L, "get_int", &A::get_int);
-bLua::reg_class_func(L, "get_int_const", &A::get_int_const); // Supports const member functions
+bLua::reg_class_func(L, "get_int_const", &A::get_int_const);
 bLua::reg_class_func(L, "set_int", &A::set_int);
 bLua::reg_class_func(L, "get_string", &A::get_string);
 bLua::reg_class_func(L, "set_string", &A::set_string);
+
+// Non-owning (C++ keeps ownership; __gc does not delete)
+// bLua::reg_class_non_owning<A>(L, "A");
+// Custom deleter:
+// bLua::reg_class_with_deleter<A>(L, my_free_A, "A");
+
+// Constructor / property / enum / overload
+bLua::reg_constructor<A, int>(L, "A_new");
+bLua::reg_property(L, "a", &A::m_a);           // get_a / set_a
+bLua::reg_enum<Color>(L, "Color", {{"Red", Color::Red}, {"Green", Color::Green}});
+bLua::reg_global_overload(L, "add", add1, add2); // dispatch by argument count
 ```
 
 Then invoke them in Lua:
 
 ```lua
--- Create an instance
 local a = newA()
-
--- Call member functions
 a:set_int(123)
 print("a:get_int() ", a:get_int())
-
--- Call string functions
 a:set_string("abc")
 print("a:get_string() ", a:get_string())
 ```
 
-### 2. C++ Calling Lua
+### 2. Containers
+```cpp
+std::vector<int> v = bLua::to_vector<int>(L, index);
+bLua::push_vector(L, v);
+
+std::map<std::string, int> m = bLua::to_map<std::string, int>(L, index);
+bLua::push_map(L, m);
+```
+
+### 3. C++ Calling Lua
 #### Call Global Function
 ```cpp
-// Receive multiple return values
 int output_int = 0;
 std::string output_str;
 uint64_t output_int64 = 0;
 
-// Input arguments
 int input_int = 123;
 std::string input_str = "test";
 
-// Call the function (supports 0 or more arguments)
-auto err = bLua::call_lua_global_func(L, "global_func_name", 
-    std::tie(output_int, output_str, output_int64), 
+auto err = bLua::call_lua_global_func(L, "global_func_name",
+    std::tie(output_int, output_str, output_int64),
     input_int, input_str);
 
-// Check if call succeeded
 if (err) {
-    // Error occurred, print error message
     printf("ret error: %s\n", err.value().c_str());
 } else {
-    // Succeeded, print returned values
     printf("%d %s %llu\n", output_int, output_str.c_str(), output_int64);
 }
 ```
 
 #### Call Nested Table Function
-If the Lua function is located inside nested tables:
 ```lua
 function _G.test.func.test(a, b)
     return a - b
 end
 ```
-Call it from C++ via a path of table keys:
 ```cpp
-auto err = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test", 
-    std::tie(output_int), 
+auto err = bLua::call_lua_table_func(L, {"_G", "test", "func"}, "test",
+    std::tie(output_int),
     input_int, input_int2);
 ```
 
-For complete examples, refer to [test/test.cpp](test/test.cpp) and [test/test.lua](test/test.lua).
+For complete examples, refer to [test/test.cpp](test/test.cpp) and [test/test.lua](test/test.lua). See also [CHANGELOG.md](CHANGELOG.md).
 
 ## Integration
 

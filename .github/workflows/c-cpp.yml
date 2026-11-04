@@ -38,6 +38,32 @@ jobs:
       run: |
         ctest --test-dir build --output-on-failure -C Release
 
+  linux-luajit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install LuaJIT
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libluajit-5.1-dev pkg-config
+
+    - name: Configure CMake
+      run: |
+        LUA_INC=$(pkg-config --cflags-only-I luajit | awk '{print substr($1,3)}')
+        LUA_LIBDIR=$(pkg-config --variable=libdir luajit)
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON \
+          -DLUA_INCLUDE_DIR="${LUA_INC}" \
+          -DLUA_LIBRARY="${LUA_LIBDIR}/libluajit-5.1.so"
+
+    - name: Build
+      run: |
+        cmake --build build --config Release
+
+    - name: Run Tests
+      run: |
+        ctest --test-dir build --output-on-failure -C Release
+
   macos-build:
     runs-on: macos-latest
     steps:
@@ -50,6 +76,33 @@ jobs:
     - name: Configure CMake
       run: |
         cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON
+
+    - name: Build
+      run: |
+        cmake --build build --config Release
+
+    - name: Run Tests
+      run: |
+        ctest --test-dir build --output-on-failure -C Release
+
+  windows-build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Lua (vcpkg)
+      run: |
+        vcpkg install lua:x64-windows
+
+    - name: Configure CMake
+      shell: pwsh
+      run: |
+        $toolchain = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        if ($env:VCPKG_ROOT) {
+          $toolchain = Join-Path $env:VCPKG_ROOT "scripts/buildsystems/vcpkg.cmake"
+        }
+        Write-Host "Using toolchain: $toolchain"
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON "-DCMAKE_TOOLCHAIN_FILE=$toolchain"
 
     - name: Build
       run: |
