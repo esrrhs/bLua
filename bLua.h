@@ -105,11 +105,19 @@ namespace bLua {
         // Never luaL_error while an exception / argument tuple is alive. All validation
         // below throws C++; only this outermost callback converts it to a Lua error.
         template<int (*Fn)(lua_State *)>
-        int boundary(lua_State *L) noexcept {
+        int boundary(lua_State *L) {
             char error[1024];
             try { return Fn(L); }
             catch (const std::exception &e) { std::snprintf(error, sizeof(error), "%s", e.what()); }
-            catch (...) { std::snprintf(error, sizeof(error), "unknown C++ exception"); }
+            catch (...) {
+#if defined(__GNUG__) && !defined(_MSC_VER)
+                // LuaJIT uses foreign DWARF exceptions for Lua errors on ELF targets.
+                // Do not consume them (or terminate at a noexcept boundary): let Lua's
+                // protected call catch its own unwinder. Native C++ exceptions have a type.
+                if (abi::__cxa_current_exception_type() == nullptr) throw;
+#endif
+                std::snprintf(error, sizeof(error), "unknown C++ exception");
+            }
             return luaL_error(L, "%s", error);
         }
 

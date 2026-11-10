@@ -1,0 +1,23 @@
+cmake_minimum_required(VERSION 3.15)
+project(bLuaCIRuntime LANGUAGES C)
+# CI-only builder for an external, pinned official lua/lua checkout. This is not
+# installed with bLua, nor a bundled runtime dependency for library consumers.
+set(LUA_SOURCE_DIR "" CACHE PATH "Official Lua source directory containing lua.h")
+if(NOT EXISTS "${LUA_SOURCE_DIR}/lua.h")
+    message(FATAL_ERROR "LUA_SOURCE_DIR must contain the official Lua sources")
+endif()
+file(GLOB sources "${LUA_SOURCE_DIR}/l*.c")
+list(REMOVE_ITEM sources "${LUA_SOURCE_DIR}/lua.c" "${LUA_SOURCE_DIR}/luac.c" "${LUA_SOURCE_DIR}/ltests.c")
+add_library(lua_ci STATIC ${sources})
+set_target_properties(lua_ci PROPERTIES OUTPUT_NAME lua)
+target_include_directories(lua_ci PUBLIC "${LUA_SOURCE_DIR}")
+if(WIN32)
+    target_compile_definitions(lua_ci PRIVATE _CRT_SECURE_NO_WARNINGS)
+elseif(APPLE)
+    target_compile_definitions(lua_ci PRIVATE LUA_USE_MACOSX)
+else()
+    target_compile_definitions(lua_ci PRIVATE LUA_USE_LINUX)
+endif()
+install(TARGETS lua_ci ARCHIVE DESTINATION lib)
+install(FILES "${LUA_SOURCE_DIR}/lua.h" "${LUA_SOURCE_DIR}/luaconf.h"
+    "${LUA_SOURCE_DIR}/lauxlib.h" "${LUA_SOURCE_DIR}/lualib.h" DESTINATION include)

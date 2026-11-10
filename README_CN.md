@@ -225,7 +225,8 @@ ctest --test-dir build/sanitize --output-on-failure
 
 CTest 包含集成/回归、故意失败退出码检查，以及安装→移动前缀→独立 find_package
 消费端编译运行。检查在 Release 中仍生效。CI 已配置 GCC/Clang × Lua 5.1–5.4、
-LuaJIT、macOS、Windows，以及 Linux Debug / ASan+UBSan；配置不等于尚未推送的远程 CI 已运行。
+LuaJIT、macOS、Windows，以及 Linux Debug / ASan+UBSan；Windows 使用固定官方 Lua 5.4.7 源码和 MSVC，LuaJIT 的外部异常展开会保留。
+配置不等于尚未推送的远程 CI 已运行。
 
 ---
 

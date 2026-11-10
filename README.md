@@ -237,7 +237,8 @@ ctest --test-dir build/sanitize --output-on-failure
 The CTest suite includes integration, regressions, intentional C++/Lua failure-exit checks,
 and install → move prefix → separate `find_package` consumer build/run. Checks remain enabled
 in Release. CI config covers GCC/Clang × Lua 5.1–5.4, LuaJIT, macOS, Windows, and Linux Debug /
-ASan+UBSan. This describes the workflow configuration, not proof that unpushed CI has run.
+ASan+UBSan. Windows builds pinned official Lua 5.4.7 sources with MSVC; LuaJIT foreign unwinding is preserved.
+This describes the workflow configuration, not proof that unpushed CI has run.
 
 ---
 

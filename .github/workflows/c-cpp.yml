@@ -94,19 +94,27 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Lua (vcpkg)
+    - name: Checkout pinned official Lua 5.4.7 sources
+      uses: actions/checkout@v4
+      with:
+        repository: lua/lua
+        ref: 1ab3208a1fceb12fca8f24ba57d6e13c5bff15e3
+        path: .ci-deps/lua
+        persist-credentials: false
+
+    - name: Build external Lua with MSVC
+      shell: pwsh
       run: |
-        vcpkg install lua:x64-windows
+        cmake -S test/lua-runtime -B build-lua "-DLUA_SOURCE_DIR=$pwd/.ci-deps/lua"
+        cmake --build build-lua --config Release --parallel
+        cmake --install build-lua --config Release --prefix "$pwd/.ci-deps/lua-install"
 
     - name: Configure CMake
       shell: pwsh
       run: |
-        $toolchain = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-        if ($env:VCPKG_ROOT) {
-          $toolchain = Join-Path $env:VCPKG_ROOT "scripts/buildsystems/vcpkg.cmake"
-        }
-        Write-Host "Using toolchain: $toolchain"
-        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON "-DCMAKE_TOOLCHAIN_FILE=$toolchain"
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON `
+          "-DLUA_INCLUDE_DIR=$pwd/.ci-deps/lua-install/include" `
+          "-DLUA_LIBRARY=$pwd/.ci-deps/lua-install/lib/lua.lib"
 
     - name: Build
       run: |

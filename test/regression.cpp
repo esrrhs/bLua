@@ -125,6 +125,7 @@ void test_ownership() {
 int f1(int x) { return x + 1; }
 int f2(int a, int b) { return a + b; }
 double same_arity(double x) { return x; }
+int throw_nonstd() { throw 42; }
 int guards = 0;
 struct Guard { Guard() { ++guards; } ~Guard() { --guards; } };
 int throwing(std::string) { Guard g; throw std::runtime_error("native boom"); }
@@ -132,12 +133,15 @@ struct ThrowCtor { explicit ThrowCtor(int) { throw std::runtime_error("construct
 void test_errors() {
     Lua s; auto L = s.L;
     bLua::reg_global_func(L, "throwing", throwing);
+    bLua::reg_global_func(L, "throw_nonstd", throw_nonstd);
     bLua::reg_global_func(L, "f1", f1);
     bLua::reg_class<ThrowCtor>(L, "ThrowCtor");
     bLua::reg_constructor<ThrowCtor, int>(L, "ThrowCtor_new");
     script(L, R"(
         local ok,err=pcall(function() throwing('arg') end)
         assert(not ok and err:find('native boom'))
+        ok,err=pcall(throw_nonstd)
+        assert(not ok and err:find('unknown C++ exception',1,true))
         ok,err=pcall(function() ThrowCtor_new(1) end)
         assert(not ok and err:find('constructor boom'))
         assert(not pcall(function() f1('not number') end))

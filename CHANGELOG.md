@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### CI follow-up
+- Permit LuaJIT's foreign unwinder through callback boundaries while still translating typed
+  native C++ exceptions, including non-`std::exception` throws; do not mark the boundary noexcept.
+- Windows CI builds pinned official Lua 5.4.7 sources with MSVC instead of downloading an
+  unbounded latest vcpkg port from lua.org; all regression/relocation tests remain enabled.
+
 ### Safety / contract changes after PR #2
 - Class registration data and copied type names are now state-local. `set_type_name<T>` /
   `get_type_name<T>` require `lua_State*`; captured userdata deleters no longer depend on mutable globals.
