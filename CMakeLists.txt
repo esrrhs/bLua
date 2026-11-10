@@ -9,9 +9,11 @@ project(bLua
 # Options
 option(BLUA_BUILD_TESTS "Build bLua tests" ON)
 option(BLUA_INSTALL "Generate install targets" ON)
+option(BLUA_ENABLE_SANITIZERS "Enable ASan/UBSan for bLua tests (GCC/Clang)" OFF)
 
 # Find Lua dependency
-find_package(Lua REQUIRED)
+find_package(Lua 5.1 REQUIRED)
+include(cmake/bLuaLua.cmake)
 
 # Define header-only library target
 add_library(bLua INTERFACE)
@@ -26,12 +28,7 @@ target_include_directories(bLua INTERFACE
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-if(TARGET Lua::Lua)
-    target_link_libraries(bLua INTERFACE Lua::Lua)
-else()
-    target_include_directories(bLua INTERFACE ${LUA_INCLUDE_DIR})
-    target_link_libraries(bLua INTERFACE ${LUA_LIBRARIES})
-endif()
+target_link_libraries(bLua INTERFACE Lua::Lua)
 
 if(NOT WIN32)
     target_link_libraries(bLua INTERFACE ${CMAKE_DL_LIBS})
@@ -44,11 +41,22 @@ if(BLUA_BUILD_TESTS)
         add_executable(blua test/test.cpp test/test_odr.cpp)
         target_link_libraries(blua PRIVATE bLua)
 
-        if(MSVC)
-            target_compile_options(blua PRIVATE /W4)
-        else()
-            target_compile_options(blua PRIVATE -Wall -Wextra -Wpedantic)
-        endif()
+        add_executable(blua_regressions test/regression.cpp)
+        target_link_libraries(blua_regressions PRIVATE bLua)
+        foreach(test_target blua blua_regressions)
+            if(MSVC)
+                target_compile_options(${test_target} PRIVATE /W4)
+            else()
+                target_compile_options(${test_target} PRIVATE -Wall -Wextra -Wpedantic)
+            endif()
+            if(BLUA_ENABLE_SANITIZERS)
+                if(MSVC OR NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+                    message(FATAL_ERROR "BLUA_ENABLE_SANITIZERS needs GCC or Clang")
+                endif()
+                target_compile_options(${test_target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+                target_link_options(${test_target} PRIVATE -fsanitize=address,undefined)
+            endif()
+        endforeach()
 
         add_custom_command(TARGET blua POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -60,6 +68,15 @@ if(BLUA_BUILD_TESTS)
             COMMAND blua
             WORKING_DIRECTORY $<TARGET_FILE_DIR:blua>
         )
+        add_test(NAME blua_regressions COMMAND blua_regressions)
+        add_test(NAME blua_check_failure COMMAND blua --intentional-failure)
+        add_test(NAME blua_lua_failure COMMAND blua --intentional-lua-failure)
+        set_tests_properties(blua_check_failure blua_lua_failure PROPERTIES WILL_FAIL TRUE)
+        if(BLUA_INSTALL)
+            configure_file(test/relocate.cmake.in relocate.cmake @ONLY)
+            add_test(NAME blua_relocated_consumer
+                COMMAND ${CMAKE_COMMAND} "-DTEST_CONFIG=$<CONFIG>" -P ${CMAKE_CURRENT_BINARY_DIR}/relocate.cmake)
+        endif()
     endif()
 endif()
 
@@ -73,6 +90,7 @@ if(BLUA_INSTALL)
     )
 
     install(FILES bLua.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(FILES cmake/bLuaLua.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/bLua)
 
     install(EXPORT bLuaTargets
         FILE bLuaTargets.cmake

@@ -1,0 +1,19 @@
+function(run_checked)
+    execute_process(COMMAND ${ARGV} RESULT_VARIABLE result)
+    if(NOT result STREQUAL "0")
+        message(FATAL_ERROR "Command failed (${result}): ${ARGV}")
+    endif()
+endfunction()
+set(root "@CMAKE_CURRENT_BINARY_DIR@/relocation-test")
+# Only this test's generated artifacts; never remove a source or user prefix.
+file(REMOVE_RECURSE "${root}")
+run_checked("@CMAKE_COMMAND@" --install "@CMAKE_CURRENT_BINARY_DIR@"
+    --prefix "${root}/original prefix" --config "${TEST_CONFIG}")
+file(RENAME "${root}/original prefix" "${root}/moved prefix")
+run_checked("@CMAKE_COMMAND@" -S "@CMAKE_CURRENT_SOURCE_DIR@/test/consumer" -B "${root}/consumer"
+    -G "@CMAKE_GENERATOR@" "-DCMAKE_CXX_COMPILER=@CMAKE_CXX_COMPILER@"
+    "-DCMAKE_PREFIX_PATH=${root}/moved prefix" "-DCMAKE_BUILD_TYPE=${TEST_CONFIG}"
+    "-DLUA_INCLUDE_DIR=@LUA_INCLUDE_DIR@" "-DLUA_LIBRARY=@LUA_LIBRARY@")
+run_checked("@CMAKE_COMMAND@" --build "${root}/consumer" --config "${TEST_CONFIG}")
+run_checked("@CMAKE_COMMAND@" -E chdir "${root}/consumer"
+    "@CMAKE_CTEST_COMMAND@" -C "${TEST_CONFIG}" --output-on-failure)

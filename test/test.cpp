@@ -1,6 +1,6 @@
 #include "bLua.h"
 #include <cstdint>
-#include <cassert>
+#include "check.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -92,9 +92,9 @@ void custom_delete_B(B *p) {
 }
 
 static void expect_lua_ok(lua_State *L, int rc, const char *what) {
-    if (rc != LUA_OK) {
+    if (rc != 0) {
         printf("FAIL %s: %s\n", what, lua_tostring(L, -1));
-        assert(false && what);
+        CHECK(false && what);
     }
 }
 
@@ -111,8 +111,9 @@ static void test_type_error(lua_State *L) {
     expect_lua_ok(L, luaL_dostring(L,
         "local ok, err = pcall(function()\n"
         "  local a = newA()\n"
-        "  a:set_int('not_a_number_but_coerced')\n"  // lua coerces
+        "  a:set_int('not_a_number')\n"
         "end)\n"
+        "assert(not ok and type(err) == 'string')\n"
         // Wrong userdata type: pass a plain table as self
         "local ok2, err2 = pcall(function()\n"
         "  local a = newA()\n"
@@ -140,14 +141,14 @@ static void test_ownership_gc() {
         "collectgarbage('collect')\n"
         "collectgarbage('collect')\n"
     ), "owning GC");
-    assert(g_alive.load() == 0 && "owning A should be deleted by Lua GC");
+    CHECK(g_alive.load() == 0 && "owning A should be deleted by Lua GC");
     printf("[ok] owning GC deletes A\n");
 
     // Non-owning: C++ stack object must survive Lua GC
     bLua::reg_class_non_owning<B>(L, "B");
     {
         B stack_b(42);
-        assert(g_alive.load() == 1);
+        CHECK(g_alive.load() == 1);
         bLua::push(L, &stack_b, bLua::ownership::non_owning);
         lua_setglobal(L, "stack_b");
         expect_lua_ok(L, luaL_dostring(L,
@@ -156,10 +157,10 @@ static void test_ownership_gc() {
             "collectgarbage('collect')\n"
             "collectgarbage('collect')\n"
         ), "non-owning GC");
-        assert(g_alive.load() == 1 && "non-owning must not delete");
+        CHECK(g_alive.load() == 1 && "non-owning must not delete");
         printf("[ok] non-owning GC does not delete\n");
     }
-    assert(g_alive.load() == 0);
+    CHECK(g_alive.load() == 0);
 
     lua_close(L);
 }
@@ -174,15 +175,15 @@ static void test_custom_deleter(lua_State *L2) {
         "collectgarbage('collect')\n"
         "collectgarbage('collect')\n"
     ), "custom deleter");
-    assert(g_custom_deleted.load() == 1 && "custom deleter should run once");
-    assert(g_alive.load() == 0);
+    CHECK(g_custom_deleted.load() == 1 && "custom deleter should run once");
+    CHECK(g_alive.load() == 0);
     printf("[ok] custom deleter\n");
 }
 
-static void test_stable_type_name(lua_State * /*L*/) {
-    const char *name = bLua::get_type_name<A>();
-    assert(name != nullptr);
-    assert(std::strcmp(name, "A") == 0);
+static void test_stable_type_name(lua_State *L) {
+    const char *name = bLua::get_type_name<A>(L);
+    CHECK(name != nullptr);
+    CHECK(std::strcmp(name, "A") == 0);
     printf("[ok] stable type name: %s\n", name);
 }
 
@@ -238,13 +239,13 @@ static void test_containers(lua_State *L) {
     lua_rawseti(L, -2, 2);
     auto vec = bLua::to_vector<int>(L, -1);
     lua_pop(L, 1);
-    assert(vec.size() == 2 && vec[0] == 10 && vec[1] == 20);
+    CHECK(vec.size() == 2 && vec[0] == 10 && vec[1] == 20);
 
     std::map<std::string, int> src{{"x", 1}, {"y", 2}};
     bLua::push_map(L, src);
     auto back = bLua::to_map<std::string, int>(L, -1);
     lua_pop(L, 1);
-    assert(back["x"] == 1 && back["y"] == 2);
+    CHECK(back["x"] == 1 && back["y"] == 2);
 
     printf("[ok] vector/map table conversion\n");
 }
@@ -265,34 +266,40 @@ static void test_multi_return(lua_State *L) {
     std::string b;
     int c = 0;
     auto err = bLua::call_lua_global_func(L, "multi_ret", std::tie(a, b, c));
-    assert(!err);
-    assert(a == 1 && b == "two" && c == 3);
+    CHECK(!err);
+    CHECK(a == 1 && b == "two" && c == 3);
 
     // Request fewer returns than provided
     int only = 0;
     err = bLua::call_lua_global_func(L, "multi_ret", std::tie(only));
-    assert(!err);
-    assert(only == 1);
+    CHECK(!err);
+    CHECK(only == 1);
 
     // Zero returns
     err = bLua::call_lua_global_func(L, "no_ret", std::tie());
-    assert(!err);
+    CHECK(!err);
 
-    // Function returns nil-ish / nothing while we ask for a value -> converted as default
+    // Missing numeric return is a conversion error; output stays unchanged.
     int z = 123;
     err = bLua::call_lua_global_func(L, "no_ret", std::tie(z));
-    assert(!err);
-    // lua_tointeger on nil -> 0
-    assert(z == 0);
+    CHECK(err.has_value());
+    CHECK(z == 123); // failed conversion leaves outputs untouched
 
     int one = 0;
     err = bLua::call_lua_global_func(L, "one_ret", std::tie(one));
-    assert(!err && one == 99);
+    CHECK(!err && one == 99);
 
     printf("[ok] multi-return edge cases\n");
 }
 
-int main(int /*argc*/, char * /*argv*/[]) {
+int run_tests(int argc, char *argv[]) {
+    if (argc > 1 && std::string(argv[1]) == "--intentional-failure") CHECK(false);
+    if (argc > 1 && std::string(argv[1]) == "--intentional-lua-failure") {
+        auto s = luaL_newstate();
+        int rc = luaL_dostring(s, "error(\"intentional Lua failure\")");
+        lua_close(s);
+        CHECK(rc == 0);
+    }
     auto L = luaL_newstate();
     luaL_openlibs(L);
 
@@ -308,9 +315,9 @@ int main(int /*argc*/, char * /*argv*/[]) {
     bLua::reg_class_func(L, "set_string", &A::set_string);
 
     int dofile_res = luaL_dofile(L, "test.lua");
-    if (dofile_res != LUA_OK) {
+    if (dofile_res != 0) {
         printf("dofile error: %s\n", lua_tostring(L, -1));
-        assert(false && "test.lua execution failed");
+        CHECK(false && "test.lua execution failed");
     }
 
     // call global lua function with args and returns
@@ -322,17 +329,17 @@ int main(int /*argc*/, char * /*argv*/[]) {
                                           std::tie(cost, message, sum, retA),
                                           100000, "test");
     printf("%d %s %llu\n", cost, message.c_str(), (unsigned long long) sum);
-    assert(!err && "call benchmark failed");
-    assert(message == "test");
-    assert(sum == 5000050000ULL);
-    assert(retA != nullptr);
+    CHECK(!err && "call benchmark failed");
+    CHECK(message == "test");
+    CHECK(sum == 5000050000ULL);
+    CHECK(retA != nullptr);
     printA(retA);
 
     // call global lua function with 0 args
     int zero_arg_ret = 0;
     err = bLua::call_lua_global_func(L, "zero_arg_func", std::tie(zero_arg_ret));
-    assert(!err && "call zero_arg_func failed");
-    assert(zero_arg_ret == 42);
+    CHECK(!err && "call zero_arg_func failed");
+    CHECK(zero_arg_ret == 42);
     printf("zero_arg_func returned: %d\n", zero_arg_ret);
 
     // call table lua function
@@ -341,19 +348,19 @@ int main(int /*argc*/, char * /*argv*/[]) {
                                     std::tie(testret),
                                     100000, 1);
     printf("%d\n", testret);
-    assert(!err && "call table func failed");
-    assert(testret == 99999);
+    CHECK(!err && "call table func failed");
+    CHECK(testret == 99999);
 
     // test non-existent table error
     int dummy = 0;
     err = bLua::call_lua_table_func(L, {"_G", "non_existent_table"}, "test",
                                     std::tie(dummy), 1, 2);
-    assert(err.has_value() && "expected error for non-existent table");
+    CHECK(err.has_value() && "expected error for non-existent table");
     printf("Expected table error caught: %s\n", err.value().c_str());
 
     // test non-existent function error
     err = bLua::call_lua_global_func(L, "non_existent_func", std::tie(dummy));
-    assert(err.has_value() && "expected error for non-existent global function");
+    CHECK(err.has_value() && "expected error for non-existent global function");
     printf("Expected global func error caught: %s\n", err.value().c_str());
 
     // Extended tests
@@ -363,9 +370,8 @@ int main(int /*argc*/, char * /*argv*/[]) {
     test_containers(L);
     test_multi_return(L);
     test_constructor_property_enum_overload(L);
-    test_ownership_gc();
-
     lua_close(L);
+    test_ownership_gc();
 
     // Custom deleter needs a fresh Lua state (fresh metatable registration for B)
     auto L2 = luaL_newstate();
@@ -375,4 +381,9 @@ int main(int /*argc*/, char * /*argv*/[]) {
 
     printf("All bLua tests passed successfully!\n");
     return 0;
+}
+
+int main(int argc, char **argv) {
+    try { return run_tests(argc, argv); }
+    catch (const std::exception &e) { std::fprintf(stderr, "%s\n", e.what()); return 1; }
 }

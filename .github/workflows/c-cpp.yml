@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         compiler: [gcc, clang]
-        lua_pkg: [liblua5.4-dev, liblua5.3-dev]
+        lua_version: ["5.1", "5.2", "5.3", "5.4"]
 
     steps:
     - uses: actions/checkout@v4
@@ -21,14 +21,18 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y ${{ matrix.lua_pkg }}
+        pkg="liblua${{ matrix.lua_version }}-dev"
+        if [ "${{ matrix.lua_version }}" = "5.1" ]; then pkg=liblua5.1-0-dev; fi
+        sudo apt-get install -y "$pkg"
 
     - name: Configure CMake
       env:
         CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
         CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
       run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLUA_BUILD_TESTS=ON \
+          -DLUA_INCLUDE_DIR=/usr/include/lua${{ matrix.lua_version }} \
+          -DLUA_LIBRARY=/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/liblua${{ matrix.lua_version }}.so
 
     - name: Build
       run: |
@@ -111,3 +115,28 @@ jobs:
     - name: Run Tests
       run: |
         ctest --test-dir build --output-on-failure -C Release
+
+  linux-debug:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizers: ["OFF", "ON"]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Lua
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y liblua5.4-dev
+    - name: Configure Debug
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DBLUA_ENABLE_SANITIZERS=${{ matrix.sanitizers }} \
+          -DLUA_INCLUDE_DIR=/usr/include/lua5.4 \
+          -DLUA_LIBRARY=/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/liblua5.4.so
+    - name: Build
+      run: cmake --build build --parallel
+    - name: Test (including failure checks and relocated consumer)
+      env:
+        ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+        UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      run: ctest --test-dir build --output-on-failure
